@@ -1,2 +1,2 @@
-# svd-word-embedding
-First word embedding of mine
+# Word embedding using 
+First word embedding of mine, using svd.

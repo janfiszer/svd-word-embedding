@@ -5,17 +5,18 @@ import pandas as pd
 import plotly.express as px
 import nltk
 from nltk.corpus import stopwords
+from typing import List
 
-
-# TODO: make class Vocabulary ?
-# TODO: do not ignore dots
-# TODO: improve function plot_2d_with_occurrences_number()
-# TODO: deal with " in given file
 
 class WordEmbedding:
-
-    def __init__(self, text: str, min_quantity=1, clean_text=False, include_stop_words=True):
-        self.text = text
+    """
+    Class dedicated to perform SVD word embedding on gives set of texts
+    @:param texts- list of texts on which the embedding will be perform
+    @:param min_quantity- an integer representing minimum number of a word in whole text set to be in vocabulary
+    @:param clean_text- bool
+    """
+    def __init__(self, texts: List[str], min_quantity=1, clean_text=False, include_stop_words=True):
+        self.texts = texts
         # booleans
         self.include_stop_words = include_stop_words
         self.clean_text = clean_text
@@ -25,19 +26,27 @@ class WordEmbedding:
         self.vocabulary = self.get_vocabulary()
         self.full_vocabulary = self._get_full_vocabulary()
 
-    def _text_to_words(self, text: str, discard_dots=True) -> list[str]:
+    @staticmethod
+    def text_to_words(texts: List[str], discard_dots=True) -> List[str]:
         if discard_dots:
             regex_exp = '[^A-Za-z]+'
         else:
+            # not sure bout this regex
             regex_exp = '[^A-Za-z.]+'
 
-        text = re.sub(regex_exp, ' ', text)
-        lower_text = text.lower()
-        words = lower_text.split()
-        return words
+        all_text = ""
+
+        for text in texts:
+            text = re.sub(regex_exp, ' ', text)
+            all_text += text
+
+        lower_text = all_text.lower()
+
+        return lower_text.split()
 
     def _get_full_vocabulary(self) -> np.array:
-        words = self._text_to_words(self.text)
+        words = self.text_to_words(self.texts)
+
         return np.unique(words)
 
     def _get_index_in_vocabulary(self, word) -> int:
@@ -78,55 +87,64 @@ class WordEmbedding:
             stop_words = set(stopwords.words('english'))
             vocabulary = [w for w in vocabulary if w not in stop_words]
 
+        vocabulary.sort()
+
         return np.array(vocabulary)
 
     # function to make term-context matrix
     # first I was using vocabulary instead of full_vocabulary, but then word embedding lose much info
     # so trying other aproach
-    def get_term_context_matrix(self, window=1, discard_dots=True, debug=False):
-        words = self._text_to_words(self.text, discard_dots=discard_dots)
+    def get_term_context_matrix(self, window=1, separate_sentences=True, debug=False):
+        words = self.text_to_words(self.texts, discard_dots=not separate_sentences)
 
         n = len(self.full_vocabulary)
         matrix = np.zeros((n, n))
 
         # do it less complicated way
         for i in range(len(words)):
-            print(words[i])
+            # print(words[i])
+            print(f"{i/len(words)}")
             for j in range(1, window + 1):
                 # TODO: make it less C
                 has_dot = False
                 word = words[i]
                 x = np.where(self.full_vocabulary == word)
 
-                if word[-1] != '.':
+                if word[-1] == '.':
                     word = word.replace('.', '')
                     has_dot = True
                 if debug:
                     logging.debug(f"i = {i}")
 
-                if i != 0:
-                    if debug:
-                        logging.debug(f"Pointed word:{word}")
-                        logging.debug(f"{j} word behind:{words[i - j]}")
-
-                    y1 = np.where(self.full_vocabulary == words[i - j])
-
-                    # when V is provided then not every word have to be in there
-                    if debug:
-                        logging.debug(x, y1)
-                    matrix[x, y1] += 1/j
-
+                # IF FACT IT DOESN'T NEED TO CHECK PREVIOUS
+                # if i != 0:
+                #     prev_word = words[i - j]
+                #     if not prev_word[-1] == '.':
+                #         if debug:
+                #             logging.debug(f"Pointed word:{word}")
+                #             logging.debug(f"{j} word behind:{prev_word}")
+                #
+                #         y1 = np.where(self.full_vocabulary == prev_word)
+                #
+                #         # when V is provided then not every word have to be in there
+                #         if debug:
+                #             logging.debug(x, y1)
+                #         matrix[x, y1] += 1/j
+                #         # matrix[y1, x] += 1/j
                 if not has_dot:
                     if i + j < len(words):
+                        next_word = words[i + j].replace('.', '')
                         if debug:
                             logging.debug(f"Pointed word:{word}")
-                            logging.debug(f"{j} word forward:{words[i + j]}")
+                            logging.debug(f"{j} word forward:{next_word}")
 
-                        y2 = np.where(self.full_vocabulary == words[i + j])
+                        y2 = np.where(self.full_vocabulary == next_word)
                         # when V is provided then not every word have to be in there
                         if debug:
                             logging.debug(x, y2)
                         matrix[x, y2] += 1/j
+                        matrix[y2, x] += 1/j
+
 
                 if debug:
                     logging.debug("")
@@ -139,10 +157,12 @@ class WordEmbedding:
 
     def get_words_quantities(self) -> dict:
         if self.clean_text:
-            words = self._text_to_words(self.text)
+            words = self.text_to_words(self.texts)
         else:
-            lower_text = self.text.lower()
-            words = lower_text.split()
+            words = []
+            for text in self.texts:
+                lower_text = text.lower()
+                words.append(lower_text.split())
 
         V = {}
 
@@ -178,7 +198,7 @@ class WordEmbedding:
     # NOT REALLY USEFUL
     @staticmethod
     def plot_2d_with_occurrences_number(matrix, words_quantities: dict[str, int]):
-        U, s, Vh = np.linalg.svd(matrix)
+        U, s, Vh = np.linalg.svd(matrix, full_matrices=False)
 
         text_column = []
 
