@@ -11,9 +11,10 @@ from typing import List
 class WordEmbedding:
     """
     Class dedicated to perform SVD word embedding on gives set of texts
-    @:param texts- list of texts on which the embedding will be perform
-    @:param min_quantity- an integer representing minimum number of a word in whole text set to be in vocabulary
-    @:param clean_text- bool
+    :param texts list of texts on which the embedding will be perform
+    :param min_quantity an integer representing minimum number of a word in whole text set to be in vocabulary
+    :param clean_text boolean which removes everything from the text except letters (regex [^A-Za-z]+)
+    :param include_stop_words boolean which can remove stop words downloaded from nltk library
     """
     def __init__(self, texts: List[str], min_quantity=1, clean_text=False, include_stop_words=True):
         self.texts = texts
@@ -28,6 +29,7 @@ class WordEmbedding:
 
     @staticmethod
     def text_to_words(texts: List[str], discard_dots=True) -> List[str]:
+        # in case we want to separate sentences we have to leave the dots
         if discard_dots:
             regex_exp = '[^A-Za-z]+'
         else:
@@ -71,6 +73,9 @@ class WordEmbedding:
             # we have to remove also from full_vocabulary to don't lose track where are the words
             self.full_vocabulary = np.delete(self.full_vocabulary, index)
 
+        # since this function modifies full_vocabulary we have to redo it
+        self.full_vocabulary = self._get_full_vocabulary()
+
         return matrix
 
     def get_vocabulary(self):
@@ -91,19 +96,26 @@ class WordEmbedding:
 
         return np.array(vocabulary)
 
-    # function to make term-context matrix
-    # first I was using vocabulary instead of full_vocabulary, but then word embedding lose much info
-    # so trying other aproach
-    def get_term_context_matrix(self, window=1, separate_sentences=True, debug=False):
+    def get_term_context_matrix(self, window=1, separate_sentences=True, debug=False, show_progress=False, reduce_matrix=True):
+        """
+        Function to compute term-context/co-occurrence matrix
+        :param window: window size, which says how many word around the word we take into consideration.
+        The bigger window the more expensive computationally it is.
+        :param separate_sentences: if True we the last word of the sentence is not connected to the
+        first word of the following.
+        :param debug: if true debug info is written to file app.log
+        :param show_progress: if True it shows the progress of going trough the self.texts in percents
+        :param reduce_matrix: if False we don't reduce the matrix, so it cheaper computationally but we use full_vocabulary
+        :return: term-context/co-occurrence matrix
+        """
         words = self.text_to_words(self.texts, discard_dots=not separate_sentences)
 
         n = len(self.full_vocabulary)
         matrix = np.zeros((n, n))
 
-        # do it less complicated way
         for i in range(len(words)):
-            # print(words[i])
-            print(f"{i/len(words)}")
+            if show_progress:
+                print(f"{i/len(words)}% DONE")
             for j in range(1, window + 1):
                 # TODO: make it less C
                 has_dot = False
@@ -116,21 +128,6 @@ class WordEmbedding:
                 if debug:
                     logging.debug(f"i = {i}")
 
-                # IF FACT IT DOESN'T NEED TO CHECK PREVIOUS
-                # if i != 0:
-                #     prev_word = words[i - j]
-                #     if not prev_word[-1] == '.':
-                #         if debug:
-                #             logging.debug(f"Pointed word:{word}")
-                #             logging.debug(f"{j} word behind:{prev_word}")
-                #
-                #         y1 = np.where(self.full_vocabulary == prev_word)
-                #
-                #         # when V is provided then not every word have to be in there
-                #         if debug:
-                #             logging.debug(x, y1)
-                #         matrix[x, y1] += 1/j
-                #         # matrix[y1, x] += 1/j
                 if not has_dot:
                     if i + j < len(words):
                         next_word = words[i + j].replace('.', '')
@@ -149,9 +146,8 @@ class WordEmbedding:
                 if debug:
                     logging.debug("")
 
-        matrix = self._full_matrix_reduce(matrix)
-        # since function _full_matrix_reduce() modifies
-        self.full_vocabulary = self._get_full_vocabulary()
+        if reduce_matrix:
+            matrix = self._full_matrix_reduce(matrix)
 
         return matrix
 
@@ -173,7 +169,6 @@ class WordEmbedding:
                 V[word] += 1
 
         if self.min_quantity > 1:
-            # TODO: make one for loop, not sure if I can do it anyway
             words_to_delete = []
             for word, value in V.items():
                 if self.min_quantity > value:
