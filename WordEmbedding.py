@@ -117,7 +117,6 @@ class WordEmbedding:
             if show_progress:
                 print(f"{i/len(words)}% DONE")
             for j in range(1, window + 1):
-                # TODO: make it less C
                 has_dot = False
                 word = words[i]
                 x = np.where(self.full_vocabulary == word)
@@ -150,9 +149,11 @@ class WordEmbedding:
 
         return matrix
 
-    def get_faster_term_context_matrix(self, window=1, separate_sentences=True, debug=False, show_progress=False, reduce_matrix=True):
+    def get_faster_term_context_matrix(self, window=1, separate_sentences=True, debug=False, show_progress=False):
         """
         Function to compute term-context/co-occurrence matrix
+        The difference between this and the get_term_context_matrix() is that it first drop unwanted words,
+        which makes it more efficient.
         :param window: window size, which says how many word around the word we take into consideration.
         The bigger window the more expensive computationally it is.
         :param separate_sentences: if True we the last word of the sentence is not connected to the
@@ -171,7 +172,6 @@ class WordEmbedding:
             if show_progress:
                 print(f"{i/len(words)}% DONE")
             for j in range(1, window + 1):
-                # TODO: make it less C
                 has_dot = False
                 word = words[i]
                 x = np.where(self.vocabulary == word)
@@ -193,6 +193,7 @@ class WordEmbedding:
                         # when V is provided then not every word have to be in there
                         if debug:
                             logging.debug(x, y2)
+
                         matrix[x, y2] += 1/j
                         matrix[y2, x] += 1/j
 
