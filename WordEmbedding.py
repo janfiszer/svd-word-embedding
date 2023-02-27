@@ -142,12 +142,62 @@ class WordEmbedding:
                         matrix[x, y2] += 1/j
                         matrix[y2, x] += 1/j
 
-
                 if debug:
                     logging.debug("")
 
         if reduce_matrix:
             matrix = self._full_matrix_reduce(matrix)
+
+        return matrix
+
+    def get_faster_term_context_matrix(self, window=1, separate_sentences=True, debug=False, show_progress=False, reduce_matrix=True):
+        """
+        Function to compute term-context/co-occurrence matrix
+        :param window: window size, which says how many word around the word we take into consideration.
+        The bigger window the more expensive computationally it is.
+        :param separate_sentences: if True we the last word of the sentence is not connected to the
+        first word of the following.
+        :param debug: if true debug info is written to file app.log
+        :param show_progress: if True it shows the progress of going trough the self.texts in percents
+        :param reduce_matrix: if False we don't reduce the matrix, so it cheaper computationally but we use full_vocabulary
+        :return: term-context/co-occurrence matrix
+        """
+        words = self.text_to_words(self.texts, discard_dots=not separate_sentences)
+
+        n = len(self.vocabulary)
+        matrix = np.zeros((n, n))
+
+        for i in range(len(words)):
+            if show_progress:
+                print(f"{i/len(words)}% DONE")
+            for j in range(1, window + 1):
+                # TODO: make it less C
+                has_dot = False
+                word = words[i]
+                x = np.where(self.vocabulary == word)
+
+                if word[-1] == '.':
+                    word = word.replace('.', '')
+                    has_dot = True
+                if debug:
+                    logging.debug(f"i = {i}")
+
+                if not has_dot:
+                    if i + j < len(words):
+                        next_word = words[i + j].replace('.', '')
+                        if debug:
+                            logging.debug(f"Pointed word:{word}")
+                            logging.debug(f"{j} word forward:{next_word}")
+
+                        y2 = np.where(self.vocabulary == next_word)
+                        # when V is provided then not every word have to be in there
+                        if debug:
+                            logging.debug(x, y2)
+                        matrix[x, y2] += 1/j
+                        matrix[y2, x] += 1/j
+
+                if debug:
+                    logging.debug("")
 
         return matrix
 
