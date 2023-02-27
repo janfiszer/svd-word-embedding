@@ -9,23 +9,15 @@ logging.basicConfig(filename='app.log', filemode='w', format='%(name)s - %(level
 
 n_files = 200
 index = 0
-window = 2
+window = 1
 
 documents = []
 
-for root, dirs, files in os.walk('data/reviews/neg'):
-    for filename in files:
-        if index < n_files:
-            file = open(os.path.join(root, filename))
-            try:
-                text = file.read()
-                documents.append(text)
-            except UnicodeDecodeError:
-                print(f"File: {filename} wasn't loaded successfully.")
-            index += 1
+file = open('data/perfect-sample.txt', 'r')
+text = file.read()
 
 
-wb = WordEmbedding.WordEmbedding(documents, clean_text=True, min_quantity=10, include_stop_words=False)
+wb = WordEmbedding.WordEmbedding([text], clean_text=True)
 print("\n-----------------------------\nVocabulary created\n-----------------------------\n")
 
 matrix = wb.get_faster_term_context_matrix(window=window, separate_sentences=True, show_progress=True)
